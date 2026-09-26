@@ -14,6 +14,9 @@ type RoomState = {
   videoId: string | null
   feedOwnerId: string | null
   history: string[]
+  playing: boolean
+  position: number
+  playbackAt: number
   updatedAt: number
 }
 
@@ -31,6 +34,7 @@ type InMessage =
   | { type: 'set-video'; videoId: string }
   | { type: 'set-feed-owner'; clientId: string }
   | { type: 'request-navigate'; direction: 'next' | 'prev' }
+  | { type: 'playback'; playing: boolean; position: number }
   | { type: 'leave-room' }
 
 const rooms = new Map<string, RoomState>()
@@ -62,6 +66,9 @@ function getOrCreate(id: string): RoomState {
       videoId: null,
       feedOwnerId: null,
       history: [],
+      playing: true,
+      position: 0,
+      playbackAt: Date.now(),
       updatedAt: Date.now(),
     }
     rooms.set(id, room)
@@ -137,9 +144,18 @@ function roomPayload(room: RoomState) {
     members,
     bridges: bridgesIn(room.id),
     historyLength: room.history.length,
+    playing: room.playing,
+    position: room.position,
+    playbackAt: room.playbackAt,
     updatedAt: room.updatedAt,
     viewers: members.filter((m) => m.role === 'watcher').length || members.length,
   }
+}
+
+function resetPlayback(room: RoomState) {
+  room.playing = true
+  room.position = 0
+  room.playbackAt = Date.now()
 }
 
 function leaveRoom(client: Client) {
@@ -267,6 +283,7 @@ wss.on('connection', (ws) => {
         const prevId = room.history.pop()
         if (!prevId) return
         room.videoId = prevId
+        resetPlayback(room)
         room.updatedAt = Date.now()
         broadcast(client.roomId, roomPayload(room))
         return
@@ -313,7 +330,9 @@ wss.on('connection', (ws) => {
       }
 
       const videoId = msg.videoId?.trim()
-      if (!videoId || !/^[\w-]{6,20}$/.test(videoId)) return
+      if (!videoId || !/^[\w-]{11}$/.test(videoId) || videoId.toLowerCase() === 'shorts') {
+        return
+      }
       if (room.videoId === videoId) return
 
       if (room.videoId) {
@@ -321,8 +340,32 @@ wss.on('connection', (ws) => {
         if (room.history.length > 50) room.history.shift()
       }
       room.videoId = videoId
+      resetPlayback(room)
       room.updatedAt = Date.now()
       broadcast(client.roomId, roomPayload(room))
+      return
+    }
+
+    if (msg.type === 'playback') {
+      if (!client.roomId || client.role === 'bridge') return
+      const room = rooms.get(client.roomId)
+      if (!room) return
+
+      room.playing = Boolean(msg.playing)
+      room.position = Math.max(0, Number(msg.position) || 0)
+      room.playbackAt = Date.now()
+      room.updatedAt = room.playbackAt
+
+      broadcast(
+        client.roomId,
+        {
+          type: 'playback',
+          playing: room.playing,
+          position: room.position,
+          playbackAt: room.playbackAt,
+        },
+        ws,
+      )
     }
   })
 
