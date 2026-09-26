@@ -1,0 +1,23 @@
+{
+  "name": "shortstogether-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WebSocket sync server for ShortsTogether",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "tsx": "^4.23.15",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/ws": "^8.18.1",
+    "typescript": "^7.0.2"
+  }
+}
