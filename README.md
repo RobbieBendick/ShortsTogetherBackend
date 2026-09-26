@@ -1,37 +1,19 @@
 # ShortsTogetherBackend
 
-WebSocket sync server for the ShortsTogether Chrome extension.
+WebSocket sync for ShortsTogether’s **shared web player** + YouTube **feed bridges**.
 
-Keeps two browsers on the same YouTube Short when either person swipes.
+## Roles
+
+- **watcher** — browser on the website (shared player)
+- **bridge** — Chrome extension on `youtube.com/shorts` supplying algorithm “next”
 
 ## Deploy on Render
 
+Already set up if you deployed earlier. Push updates to redeploy.
+
 1. Push this repo to GitHub.
-2. Render → **New** → **Web Service** → connect the repo.
-3. Settings:
-
-| Setting | Value |
-|---|---|
-| Runtime | Node |
-| Build Command | `npm install` |
-| Start Command | `npm start` |
-| Instance | Free |
-
-4. Open the HTTPS URL — you should see:
-
-```json
-{"ok":true,"service":"shortstogether"}
-```
-
-5. In the ShortsTogether extension, set **Sync server** to:
-
-```text
-wss://YOUR-SERVICE-NAME.onrender.com
-```
-
-Both people use that same URL + the same room code.
-
-> Free Render apps sleep when idle. First connect after sleep can take ~30–60s.
+2. Render Web Service: Build `npm install`, Start `npm start`.
+3. Extension + website Sync server: `wss://YOUR-SERVICE.onrender.com`
 
 ## Local
 
@@ -40,11 +22,9 @@ npm install
 npm run dev
 ```
 
-→ `ws://localhost:3001`
+## Protocol
 
-## Protocol (JSON over WebSocket)
-
-- `{ "type": "create-room" }`
-- `{ "type": "join-room", "roomId": "abc123" }`
-- `{ "type": "set-video", "videoId": "youtubeId" }`
-- `{ "type": "leave-room" }`
+- `create-room` / `join-room` with `{ clientId, name, role: "watcher" | "bridge" }`
+- `set-feed-owner` — whose bridge supplies next
+- `request-navigate` `{ direction: "next" | "prev" }` — next asks the feed bridge to advance YouTube
+- `set-video` — only accepted from the feed owner (bridge)
