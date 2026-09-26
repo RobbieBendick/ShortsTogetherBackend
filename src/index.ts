@@ -34,7 +34,7 @@ type InMessage =
   | { type: 'set-video'; videoId: string }
   | { type: 'set-feed-owner'; clientId: string }
   | { type: 'request-navigate'; direction: 'next' | 'prev' }
-  | { type: 'playback'; playing: boolean; position: number }
+  | { type: 'playback'; playing: boolean; position: number; at?: number }
   | { type: 'leave-room' }
 
 const rooms = new Map<string, RoomState>()
@@ -351,10 +351,26 @@ wss.on('connection', (ws) => {
       const room = rooms.get(client.roomId)
       if (!room) return
 
-      room.playing = Boolean(msg.playing)
-      room.position = Math.max(0, Number(msg.position) || 0)
-      room.playbackAt = Date.now()
-      room.updatedAt = room.playbackAt
+      const nextPlaying = Boolean(msg.playing)
+      const nextPosition = Math.max(0, Number(msg.position) || 0)
+      const clientAt = Number(msg.at) || Date.now()
+      // Prefer client clock for ordering so late packets can't overwrite a newer click
+      const at = Math.min(Date.now() + 30, clientAt)
+
+      if (at < room.playbackAt) return
+
+      if (
+        room.playing === nextPlaying &&
+        Math.abs(room.position - nextPosition) < 0.35 &&
+        at - room.playbackAt < 200
+      ) {
+        return
+      }
+
+      room.playing = nextPlaying
+      room.position = nextPosition
+      room.playbackAt = at
+      room.updatedAt = Date.now()
 
       broadcast(
         client.roomId,
